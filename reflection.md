@@ -7,6 +7,21 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+- The 3 core actions a user should be able to perform are entering basic owner and pet info, adding/editing tasks, generating a daily plan based on variables like constraints and priorities. This plan should be explained clearly. there also should be tests on the backend to ensure everything is working in its intended purpose.
+-For the main objects needed for the system, you would need the following:
+owner, pet, task, plan
+The attributes would probably look like this:
+Owner: name
+Pet: name, breed, age
+Task: name, duration, frequency, date, urgency/priority
+Plan: name, number of tasks
+The methods would probably look like this:
+Owner: edit info
+Pet: edit info
+Task: add task, edit task
+Plan: edit plan, view plan, view explanation
+
+
 **b. Design changes**
 
 - Did your design change during implementation?
