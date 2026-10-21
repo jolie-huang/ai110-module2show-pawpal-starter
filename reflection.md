@@ -80,7 +80,6 @@ When we got to conflict detection, it first suggested raising a custom error (Sc
 
 I also didn't trust the AI's code just because it looked right. For sorting times, I tested what happens with something like "8:00" vs. "10:00". Comparing them as plain strings got it wrong since '8' is bigger than '1', which is why we switched to datetime.strptime. For the multi-pet and recurring task stuff, I ran little test scripts and the pytest suite (python -m pytest) in the project's virtual environment. Once the tests passed, I felt pretty good that everything was working together the way it should.
 ---
-
 ## 4. Testing and Verification
 
 **a. What you tested**
