@@ -3,11 +3,13 @@ classDiagram
         +str name
         +list~Pet~ pets
         +add_pet(pet: Pet) void
+        +get_pet(name: str) Pet
         +get_all_tasks() list~Task~
     }
 
     class Pet {
         +str name
+        +str species
         +str breed
         +int age
         +list~Task~ tasks
@@ -23,18 +25,27 @@ classDiagram
         +str priority
         +bool is_completed
         +str pet_name
+        +str date
         +mark_complete() void
+        +get_next_occurrence() Task
     }
 
     class Scheduler {
         +Owner owner
-        +get_daily_schedule() list~Task~
-        +sort_by_time() list~Task~
+        +get_all_tasks() list~Task~
+        +mark_task_complete(task: Task) Task
+        +sort_by_time(tasks: list~Task~) list~Task~
+        +sort_by_priority(tasks: list~Task~) list~Task~
+        +filter_tasks(pet_name: str, is_completed: bool) list~Task~
         +filter_by_pet(pet_name: str) list~Task~
         +filter_by_status(is_completed: bool) list~Task~
-        +detect_conflicts() list~str~
+        +detect_conflicts(tasks: list~Task~) list~str~
+        +get_daily_schedule() list~Task~
+        +explain_plan() list~str~
     }
 
-    Owner "1" *-- "many" Pet : manages
-    Pet "1" *-- "many" Task : assigned
-    Scheduler --> Owner : retrieves tasks via get_all_tasks()
+    Owner "1" *-- "0..*" Pet : manages
+    Pet "1" *-- "0..*" Task : owns / assigns
+    Scheduler --> "1" Owner : holds reference / queries
+    Scheduler ..> Task : coordinates lifecycle & recurrence
+    Scheduler ..> Pet : looks up pet to add recurring task

@@ -56,61 +56,65 @@ Scheduler is the central coordinator and the brain of the whole thing. It takes 
 
 ### How the Classes Work Together
 
-```text
-[Owner] 1 ──── * [Pet] 1 ──── * [Task]
-   ▲
-   │ (queries via get_all_tasks())
-[Scheduler] ─── (Sorts, Filters, Detects Conflicts, Explains Plan)
+Source: [`diagrams/uml_final.mmd`](diagrams/uml_final.mmd)
+
+```mermaid
+classDiagram
+    class Owner {
+        +str name
+        +list~Pet~ pets
+        +add_pet(pet: Pet) void
+        +get_pet(name: str) Pet
+        +get_all_tasks() list~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +list~Task~ tasks
+        +add_task(task: Task) void
+        +get_tasks() list~Task~
+    }
+
+    class Task {
+        +str title
+        +str time
+        +int duration_minutes
+        +str frequency
+        +str priority
+        +bool is_completed
+        +str pet_name
+        +str date
+        +mark_complete() void
+        +get_next_occurrence() Task
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks() list~Task~
+        +mark_task_complete(task: Task) Task
+        +sort_by_time(tasks: list~Task~) list~Task~
+        +sort_by_priority(tasks: list~Task~) list~Task~
+        +filter_tasks(pet_name: str, is_completed: bool, tasks: list~Task~) list~Task~
+        +filter_by_pet(pet_name: str, tasks: list~Task~) list~Task~
+        +filter_by_status(is_completed: bool, tasks: list~Task~) list~Task~
+        +detect_conflicts(tasks: list~Task~) list~str~
+        +get_daily_schedule() list~Task~
+        +explain_plan() list~str~
+    }
+
+    Owner "1" *-- "0..*" Pet : manages
+    Pet "1" *-- "0..*" Task : owns
+    Scheduler --> "1" Owner : holds reference / queries
+    Scheduler ..> Task : coordinates lifecycle & recurrence
+    Scheduler ..> Pet : looks up pet to attach next task
 ```
 
 1. **Task Attribution**: When an `Owner` adds tasks to a `Pet`, the `Pet` ensures each `Task` carries its `pet_name`.
 2. **Multi-Pet Retrieval**: The `Scheduler` queries `Owner.get_all_tasks()`, collecting tasks across all pets seamlessly.
 3. **Smart Coordination**: The `Scheduler` sorts the master routine chronologically, detects overlapping conflicts, and when a task is completed, coordinates re-attaching the next recurring task to the correct pet.
-
-## 🖥️ Sample Output
-
-Sample terminal output from running the CLI demo (`python main.py`):
-
-```text
-============================================================
-🐾 PAWPAL+ PET CARE MANAGEMENT DEMO
-============================================================
-👤 Owner: Jordan
-🐶 Added Pet: Mochi (Golden Retriever, 3 yrs)
-🐱 Added Pet: Luna (Siamese, 2 yrs)
-
-============================================================
-🐾 TODAY'S SCHEDULE (CHRONOLOGICAL)
-============================================================
-Time     | Pet      | Task                       | Dur    | Priority | Status
----------+----------+----------------------------+--------+----------+-----------
-08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Pending
-08:45    | Mochi    | Breakfast & Supplements    | 15m    | High     | Pending
-08:45    | Luna     | Vet Video Checkup          | 30m    | High     | Pending
-09:15    | Luna     | Catnip Play Session        | 25m    | Medium   | Pending
-14:00    | Mochi    | Brush Coat & Grooming      | 20m    | Medium   | Pending
-
-============================================================
-🐾 SMART CONFLICT DETECTION
-============================================================
-⚠️  Exact time conflict at 08:45: 'Breakfast & Supplements' (Mochi) and 'Vet Video Checkup' (Luna) are scheduled at the same time.
-
-============================================================
-🐾 PLAN REASONING & EXPLANATIONS
-============================================================
-• [08:00] Morning Walk & Potty for Mochi (30m) - Priority: HIGH | Frequency: daily. Ordered chronologically to keep Mochi's routine consistent.
-• [08:45] Breakfast & Supplements for Mochi (15m) - Priority: HIGH | Frequency: daily. Ordered chronologically to keep Mochi's routine consistent.
-• [08:45] Vet Video Checkup for Luna (30m) - Priority: HIGH | Frequency: once. Ordered chronologically to keep Luna's routine consistent.
-• [09:15] Catnip Play Session for Luna (25m) - Priority: MEDIUM | Frequency: daily. Ordered chronologically to keep Luna's routine consistent.
-• [14:00] Brush Coat & Grooming for Mochi (20m) - Priority: MEDIUM | Frequency: weekly. Ordered chronologically to keep Mochi's routine consistent.
-
-============================================================
-🐾 RECURRING TASK VERIFICATION
-============================================================
-Marking 'Morning Walk & Potty' complete...
-Status of original task: is_completed = True
-✅ Recurring task auto-generated for Mochi: 'Morning Walk & Potty' on 2026-10-22 at 08:00
-```
 
 ## 🧪 Testing PawPal+
 
@@ -189,53 +193,224 @@ tests/test_pawpal.py::test_empty_states_handled_gracefully PASSED        [100%]
 
 **Confidence Level**: ⭐⭐⭐⭐⭐ (5/5 stars)
 
-## 📐 Smarter Scheduling
+## ✨ Core Algorithmic Features
 
-PawPal+ includes four core algorithmic behaviors located in `pawpal_system.py` to keep daily pet routines organized, consistent, and collision-free:
+PawPal+ includes six core algorithmic behaviors located in `pawpal_system.py` that power the intelligent scheduling engine:
 
-### 1. Sorting Behavior
-* **Methods**: `Scheduler.sort_by_time()`, `Scheduler.sort_by_priority()`
+### 1. Chronological Sorting & Normalization
+* **Method**: `Scheduler.sort_by_time(tasks=None)`
 * **Implementation Details**:
-  * `sort_by_time()` sorts tasks chronologically using Python's `sorted()` with a key that converts `"HH:MM"` 24-hour time strings into comparable `datetime` objects via `_parse_time()`.
-  * Avoids string-comparison pitfalls (such as `"8:00" > "10:00"`) and safely orders tasks regardless of insertion order.
-  * `sort_by_priority()` maps priorities (`high: 1`, `medium: 2`, `low: 3`) to order tasks by urgency during schedule crunch times.
+  * Uses Python's `sorted()` with a custom key powered by `_parse_time()` to parse `"HH:MM"` 24-hour time strings via `datetime.strptime`.
+  * Safely normalizes single-digit vs. double-digit hours (e.g., `"8:00"` correctly precedes `"10:00"`), avoiding naive lexicographical string comparison errors where `"1" < "8"`.
+  * Reliably handles edge cases including day boundary extremes (`"00:15"` and `"23:45"`) and preserves relative order for simultaneous appointments.
 
-### 2. Filtering Behavior
+### 2. Priority-Weighted Urgency Sorting
+* **Method**: `Scheduler.sort_by_priority(tasks=None)`
+* **Implementation Details**:
+  * Evaluates task priority strings against `PRIORITY_MAP = {"high": 1, "medium": 2, "low": 3}`.
+  * Allows owners to sort active tasks by urgency during schedule crunch times, ensuring health-critical activities (such as insulin administration or medication) take precedence over flexible tasks (such as brushing or grooming).
+
+### 3. Lightweight, Non-Blocking Conflict Detection
+* **Method**: `Scheduler.detect_conflicts(tasks=None)`
+* **Implementation Details**:
+  * **Sweep-Line Interval Evaluation**: Sorts active schedule tasks chronologically and checks adjacent intervals. If a subsequent task starts after the current task finishes (`t2_start >= t1_end`), it safely breaks early.
+  * **Collision Types**:
+    * **Exact Duplicate Times**: Detects when two routines share the exact same start minute (`t2_start == t1_start`).
+    * **Duration Overlaps**: Detects when a subsequent task begins before the preceding activity finishes (`t2_start < t1_end`).
+  * **Scope Categorization**:
+    * **`[Same-Pet]`**: Identifies when a single animal is scheduled for conflicting activities (e.g., eating while out on a walk).
+    * **`[Multi-Pet]`**: Identifies caregiver bottlenecks where multiple pets require care simultaneously.
+  * **Non-Crashing Architecture**: Returns structured, actionable warning strings (`List[str]`) rather than throwing exceptions, keeping the daily schedule accessible.
+
+### 4. Intelligent Recurrence Lifecycle & Idempotency
+* **Methods**: `Task.get_next_occurrence()`, `Scheduler.mark_task_complete(task)`
+* **Implementation Details**:
+  * **Date Arithmetic via `timedelta`**:
+    * `"daily"`: Advances due date by +1 day (`today + timedelta(days=1)`).
+    * `"weekly"`: Advances due date by +7 days (`today + timedelta(days=7)`).
+    * `"once"`: Returns `None` (non-recurring).
+  * **Overdue Task Anchoring**: Calculates the anchor date using `max(current_dt, date.today())`. If an overdue task from weeks ago is marked complete today, the next occurrence is anchored relative to today rather than the historical past.
+  * **Idempotency Guard**: Before attaching a generated recurring task to a pet, `Scheduler.mark_task_complete()` checks `pet.tasks` to prevent duplicate records if a user triggers completion multiple times.
+  * **Clean State Reset**: Newly generated recurring task instances inherit title, duration, priority, and frequency, while resetting `is_completed=False`.
+
+### 5. Multi-Criteria Single-Pass Filtering
 * **Methods**: `Scheduler.filter_tasks()`, `Scheduler.filter_by_pet()`, `Scheduler.filter_by_status()`
 * **Implementation Details**:
-  * `filter_tasks()` provides a unified multi-criteria filter in a single $O(N)$ pass. It can filter simultaneously by pet name (case-insensitive), completion status (`is_completed=True/False`), priority, and specific dates.
-  * `filter_by_pet()` and `filter_by_status()` act as clean convenience wrappers that delegate to `filter_tasks()`, enabling individual pet views and pending task dashboards in both CLI and Streamlit.
+  * Evaluates task subsets in a single $O(N)$ pass across multiple dimensions: case-insensitive pet name, completion status (`is_completed`), priority, or date.
+  * Convenience wrappers `filter_by_pet()` and `filter_by_status()` cleanly delegate to `filter_tasks()`, powering individual pet tabs and pending dashboards.
 
-### 3. Conflict Detection Logic
-* **Method**: `Scheduler.detect_conflicts()`
+### 6. Explainable AI & Plan Reasoning
+* **Method**: `Scheduler.explain_plan()`
 * **Implementation Details**:
-  * **Lightweight & Non-Blocking**: Instead of raising exceptions that would crash the app or block user view, the method returns a list of human-readable warning strings (`List[str]`).
-  * **Sweep-Line Interval Check**: Sorts active schedule tasks chronologically and checks adjacent intervals. If the next task starts after or at the current task's end time, it breaks early.
-  * **Scope Differentiation**: Explicitly categorizes collisions as:
-    * **`[Same-Pet]`**: Flagging when an individual pet has duplicate simultaneous tasks (e.g. eating and meds at the same time).
-    * **`[Multi-Pet]`**: Flagging caregiver bottlenecks when tasks across different pets overlap (e.g. walking the dog while on a cat vet call).
-  * Catches both exact start-time collisions and interval overlaps (`t2_start < t1_end`).
+  * Iterates through the active daily schedule and constructs human-readable rationales explaining the scheduled time, duration, priority, frequency, and why the task was sequenced in that order.
 
-### 4. Recurring Task Logic
-* **Methods**: `Task.get_next_occurrence()`, `Scheduler.mark_task_complete()`
-* **Implementation Details**:
-  * `Task.get_next_occurrence()` calculates the next occurrence using Python's `datetime.timedelta`:
-    * `"daily"`: Adds `timedelta(days=1)` (today + 1 day).
-    * `"weekly"`: Adds `timedelta(days=7)` (today + 7 days).
-    * `"once"`: Returns `None` (non-recurring).
-  * Automatically handles calendar rollovers (month boundaries, leap years) and anchors overdue tasks to today so past tasks never spawn occurrences in the past.
-  * `Scheduler.mark_task_complete()` handles the lifecycle: it marks the current task completed, generates the next occurrence, and attaches it to the appropriate pet with an **idempotency check** to prevent duplicate tasks if users toggle checkboxes multiple times.
+---
 
-## 📸 Demo Walkthrough
+## 🎥 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### 1. Main UI Features & User Actions
 
-1. **Owner & Pet Setup**: Register pet owner details and add multiple pets (e.g. Mochi the dog and Luna the cat).
-2. **Task Creation**: Add daily, weekly, or one-off tasks with designated time, duration, and priority.
-3. **Multi-Pet Aggregation**: The `Scheduler` queries `Owner.get_all_tasks()` to collect tasks across all household pets.
-4. **Smart Scheduling & Conflicts**: Tasks are sorted chronologically; overlapping appointments trigger actionable warnings.
-5. **Task Completion & Recurrence**: Marking a daily task complete generates tomorrow's instance automatically.
+* **Household Pet Management (Sidebar)**:
+  * View all registered pets, species, breed, age, and current task counts.
+  * Add new pets to the household dynamically via the registration form.
+* **Top Metric Overview**:
+  * Live KPI tiles displaying **Registered Pets**, **Pending Today**, **Completed**, and **Active Conflicts** (with color-coded "Action Required" status tags).
+* **Smart Daily Schedule Tab**:
+  * View the master daily schedule aggregated across all household pets.
+  * Switch sort orders dynamically: **Chronological Order** (earliest to latest) or **Urgency Order** (High &rarr; Medium &rarr; Low).
+  * Filter schedule views by individual pet or view all pets simultaneously.
+  * Interactive conflict warning drawer highlighting `[Same-Pet]` and `[Multi-Pet]` collisions with suggested fixes.
+  * Plan Explanations expander showing the algorithmic rationale behind the day's plan.
+* **Add Care Task Tab**:
+  * Schedule new routines with time, duration, priority, and recurrence frequency.
+  * Automatically sets pet attribution so tasks are never orphaned.
+* **Routine Manager & Completion Tab**:
+  * Filter routines by pet and completion status.
+  * Check off tasks with the "Complete Task" button, triggering automated recurrence rollovers with instant feedback banners.
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+---
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+### 2. Example Step-by-Step Workflow
+
+1. **Step 1: Register a Pet**
+   * In the sidebar, enter **Pet Name** `"Milo"`, select **Species** `"Dog"`, enter **Breed** `"Beagle"`, and set **Age** `2`.
+   * Click **➕ Register Pet**. Milo appears in the household overview with `0 tasks`.
+2. **Step 2: Schedule Care Tasks**
+   * Navigate to the **➕ Add Care Task** tab.
+   * Add Task 1: Assign to `Milo`, title `"Morning Walk"`, start time `08:00`, duration `30` min, priority `high`, frequency `daily`. Click **➕ Schedule Task**.
+   * Add Task 2: Assign to `Milo`, title `"Post-Walk Breakfast"`, start time `08:15`, duration `15` min, priority `high`, frequency `daily`. Click **➕ Schedule Task**.
+3. **Step 3: Inspect Today's Schedule & Review Conflicts**
+   * Switch to the **📅 Smart Daily Schedule** tab.
+   * Notice that the **⚠️ Active Conflicts** metric updates to `1` with an "Action Required" tag.
+   * An advisory warning card appears:
+     > `⚠️ Overlap Conflict [Same-Pet (Milo)] at 08:15: 'Post-Walk Breakfast' (Milo) overlaps with 'Morning Walk' (Milo, starts 08:00, duration 30m).`
+     > *💡 Tip: Stagger start times so the pet can finish their prior activity.*
+   * Toggle sort order to **Urgency (Priority)** to see high-priority tasks prioritized at the top of the table.
+4. **Step 4: Complete a Task & Observe Automatic Recurrence**
+   * Open the **📋 Routine Manager & Completion** tab.
+   * Locate `"Morning Walk"` and click **Complete Task**.
+   * The status updates to `✅ Completed`.
+   * An alert banner confirms:
+     > `🎉 Completed! Next 'Morning Walk' auto-scheduled for Milo on 2026-10-22 at 08:00.`
+   * In the sidebar, Milo's task counter increments, reflecting both the completed task and tomorrow's upcoming routine.
+
+---
+
+### 3. Key Scheduler Behaviors Demonstrated
+
+* **Chronological Normalization**: Regardless of the order tasks are entered into the system, the daily schedule displays routines in strict chronological sequence (`08:00` &rarr; `08:45` &rarr; `14:00`).
+* **Non-Blocking Safety**: Conflicts alert the user to potential bottlenecks without crashing the application or hiding the schedule.
+* **Automated Recurrence Management**: Completing recurring tasks automatically handles date math and guarantees the owner never has to re-type everyday routines.
+* **Encapsulated Multi-Pet Aggregation**: The `Scheduler` queries `Owner.get_all_tasks()`, enabling effortless multi-pet management from a single unified dashboard.
+
+---
+
+### 4. Sample CLI Demo Execution (`python main.py`)
+
+Run the standalone CLI verification script to view the scheduling engine in action:
+
+```bash
+python main.py
+```
+
+**Terminal Output**:
+
+```text
+============================================================
+🐾 PAWPAL+ PET CARE MANAGEMENT DEMO
+============================================================
+👤 Owner: Jordan
+🐶 Added Pet: Mochi (Golden Retriever, 3 yrs)
+🐱 Added Pet: Luna (Siamese, 2 yrs)
+
+============================================================
+🐾 1. RAW TASKS AS ADDED (OUT OF ORDER)
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+14:00    | Mochi    | Brush Coat & Grooming      | 20m    | Medium   | Pending
+19:30    | Mochi    | Evening Walk & Wind-down   | 25m    | Medium   | Pending
+08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Pending
+08:45    | Mochi    | Breakfast & Supplements    | 15m    | High     | Pending
+08:45    | Mochi    | Flea & Tick Prevention     | 10m    | High     | Pending
+09:15    | Luna     | Catnip Play Session        | 25m    | Medium   | Pending
+08:45    | Luna     | Vet Video Checkup          | 30m    | High     | Pending
+
+============================================================
+🐾 2. CHRONOLOGICALLY SORTED SCHEDULE
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Pending
+08:45    | Mochi    | Breakfast & Supplements    | 15m    | High     | Pending
+08:45    | Mochi    | Flea & Tick Prevention     | 10m    | High     | Pending
+08:45    | Luna     | Vet Video Checkup          | 30m    | High     | Pending
+09:15    | Luna     | Catnip Play Session        | 25m    | Medium   | Pending
+14:00    | Mochi    | Brush Coat & Grooming      | 20m    | Medium   | Pending
+19:30    | Mochi    | Evening Walk & Wind-down   | 25m    | Medium   | Pending
+
+============================================================
+🐾 3. FILTER BY PET: MOCHI'S TASKS ONLY
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+14:00    | Mochi    | Brush Coat & Grooming      | 20m    | Medium   | Pending
+19:30    | Mochi    | Evening Walk & Wind-down   | 25m    | Medium   | Pending
+08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Pending
+08:45    | Mochi    | Breakfast & Supplements    | 15m    | High     | Pending
+08:45    | Mochi    | Flea & Tick Prevention     | 10m    | High     | Pending
+
+============================================================
+🐾 4. FILTER BY PET: LUNA'S TASKS ONLY
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+09:15    | Luna     | Catnip Play Session        | 25m    | Medium   | Pending
+08:45    | Luna     | Vet Video Checkup          | 30m    | High     | Pending
+
+============================================================
+🐾 5. LIGHTWEIGHT CONFLICT DETECTION
+============================================================
+Detected 3 conflict(s) (non-blocking warnings):
+  ⚠️  Exact Conflict [Same-Pet (Mochi)] at 08:45: 'Breakfast & Supplements' and 'Flea & Tick Prevention' are scheduled at the exact same time.
+  ⚠️  Exact Conflict [Multi-Pet (Mochi & Luna)] at 08:45: 'Breakfast & Supplements' and 'Vet Video Checkup' are scheduled at the exact same time.
+  ⚠️  Exact Conflict [Multi-Pet (Mochi & Luna)] at 08:45: 'Flea & Tick Prevention' and 'Vet Video Checkup' are scheduled at the exact same time.
+
+============================================================
+🐾 6. PLAN REASONING & EXPLANATIONS
+============================================================
+• [08:00] Morning Walk & Potty for Mochi (30m) - Priority: HIGH | Frequency: daily. Ordered chronologically to keep Mochi's routine consistent.
+• [08:45] Breakfast & Supplements for Mochi (15m) - Priority: HIGH | Frequency: daily. Ordered chronologically to keep Mochi's routine consistent.
+• [08:45] Flea & Tick Prevention for Mochi (10m) - Priority: HIGH | Frequency: monthly. Ordered chronologically to keep Mochi's routine consistent.
+• [08:45] Vet Video Checkup for Luna (30m) - Priority: HIGH | Frequency: once. Ordered chronologically to keep Luna's routine consistent.
+• [09:15] Catnip Play Session for Luna (25m) - Priority: MEDIUM | Frequency: daily. Ordered chronologically to keep Luna's routine consistent.
+• [14:00] Brush Coat & Grooming for Mochi (20m) - Priority: MEDIUM | Frequency: weekly. Ordered chronologically to keep Mochi's routine consistent.
+• [19:30] Evening Walk & Wind-down for Mochi (25m) - Priority: MEDIUM | Frequency: daily. Ordered chronologically to keep Mochi's routine consistent.
+
+============================================================
+🐾 7. TASK COMPLETION & STATUS FILTERING
+============================================================
+Marking 'Morning Walk & Potty' as completed...
+✅ Recurring task auto-generated for Mochi: 'Morning Walk & Potty' on 2026-10-22 at 08:00
+
+============================================================
+🐾 COMPLETED TASKS (FILTER_TASKS: IS_COMPLETED=TRUE)
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Completed
+
+============================================================
+🐾 PENDING TASKS (FILTER_TASKS: IS_COMPLETED=FALSE)
+============================================================
+Time     | Pet      | Task                       | Dur    | Priority | Status
+---------+----------+----------------------------+--------+----------+-----------
+14:00    | Mochi    | Brush Coat & Grooming      | 20m    | Medium   | Pending
+19:30    | Mochi    | Evening Walk & Wind-down   | 25m    | Medium   | Pending
+08:45    | Mochi    | Breakfast & Supplements    | 15m    | High     | Pending
+08:45    | Mochi    | Flea & Tick Prevention     | 10m    | High     | Pending
+08:00    | Mochi    | Morning Walk & Potty       | 30m    | High     | Pending
+09:15    | Luna     | Catnip Play Session        | 25m    | Medium   | Pending
+08:45    | Luna     | Vet Video Checkup          | 30m    | High     | Pending
+```
+

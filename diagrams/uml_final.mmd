@@ -1,0 +1,52 @@
+classDiagram
+    class Owner {
+        +str name
+        +list~Pet~ pets
+        +add_pet(pet: Pet) void
+        +get_pet(name: str) Pet
+        +get_all_tasks() list~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +list~Task~ tasks
+        +add_task(task: Task) void
+        +get_tasks() list~Task~
+    }
+
+    class Task {
+        +str title
+        +str time
+        +int duration_minutes
+        +str frequency
+        +str priority
+        +bool is_completed
+        +str pet_name
+        +str date
+        +mark_complete() void
+        +get_next_occurrence() Task
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks() list~Task~
+        +mark_task_complete(task: Task) Task
+        +sort_by_time(tasks: list~Task~) list~Task~
+        +sort_by_priority(tasks: list~Task~) list~Task~
+        +filter_tasks(pet_name: str, is_completed: bool, tasks: list~Task~) list~Task~
+        +filter_by_pet(pet_name: str, tasks: list~Task~) list~Task~
+        +filter_by_status(is_completed: bool, tasks: list~Task~) list~Task~
+        +detect_conflicts(tasks: list~Task~) list~str~
+        +get_daily_schedule() list~Task~
+        +explain_plan() list~str~
+    }
+
+    Owner "1" *-- "0..*" Pet : manages
+    Pet "1" *-- "0..*" Task : owns
+    Scheduler --> "1" Owner : holds reference / queries
+    Scheduler ..> Task : coordinates lifecycle & recurrence
+    Scheduler ..> Pet : looks up pet to attach next task
+
