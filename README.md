@@ -114,33 +114,77 @@ Status of original task: is_completed = True
 
 ## 🧪 Testing PawPal+
 
-```bash
-# Run the full test suite:
-pytest
+PawPal+ includes a comprehensive unit test suite built with `pytest` in `tests/test_pawpal.py` to verify domain models, scheduling logic, and edge cases.
 
-# Run with coverage:
-pytest --cov
+### Running Tests
+
+Execute the test suite using either of the following commands:
+
+```bash
+# Run tests with Python module runner:
+python -m pytest
+
+# Run tests with detailed verbose output:
+python -m pytest -v
 ```
 
-Sample test output:
+### What the Tests Cover
+
+The test suite contains 18 unit tests covering four core areas:
+
+1. **Sorting Correctness**:
+   - **Chronological Ordering**: Ensures tasks entered in random or out-of-order sequences are ordered from earliest to latest.
+   - **Time Parsing & Normalization**: Confirms single-digit hours (`"8:00"`) correctly sort before double-digit hours (`"10:00"`), avoiding naive string comparison errors.
+   - **Day Boundaries**: Tests extreme timestamps such as midnight (`"00:15"`) and end of day (`"23:45"`).
+   - **Priority Sorting**: Verifies descending priority ordering (High &rarr; Medium &rarr; Low).
+
+2. **Recurrence Logic**:
+   - **Daily Rollover**: Confirms that marking a daily task complete sets `is_completed=True` on the original task, creates a new task instance for tomorrow (`today + 1 day`) with `is_completed=False`, and attaches it to the pet.
+   - **Weekly Rollover**: Validates that weekly tasks advance by exactly 7 days (`today + 7 days`).
+   - **One-Time Tasks**: Verifies non-recurring tasks (`frequency="once"`) do not spawn new occurrences upon completion.
+   - **Overdue Task Anchoring**: Ensures overdue tasks from past dates anchor new occurrences to `today + 1 day` so tasks are never scheduled in the past.
+   - **Idempotent Completion**: Ensures calling completion repeatedly on the same task does not create duplicate recurring entries for the same date.
+
+3. **Conflict Detection**:
+   - **Exact Duplicate Times**: Flags tasks scheduled at the exact same minute, categorizing them as either `[Same-Pet]` or `[Multi-Pet]`.
+   - **Interval Overlaps**: Flags when a subsequent task starts before the preceding task's duration has ended (`start < end`).
+   - **Back-to-Back Precision**: Confirms tasks starting at the exact minute an earlier task ends (e.g., 08:00–08:30 and 08:30–09:00) do **not** trigger false-positive warnings.
+   - **Active Task Filtering**: Ensures already completed tasks do not trigger conflicts with pending tasks.
+
+4. **Entity Management & Filtering**:
+   - **Automatic Attribution**: Adding a task to a `Pet` automatically stamps the pet's name on the task.
+   - **Multi-Pet Aggregation**: `Owner.get_all_tasks()` aggregates tasks across all owned pets seamlessly.
+   - **Multi-Criteria Filtering**: Tests filtering by pet name, completion status, and combined criteria.
+   - **Empty States**: Confirms empty owners, pets with no tasks, and empty schedules execute gracefully without raising exceptions.
+
+### Sample Test Output
 
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.15.0, pytest-9.1.1, pluggy-1.7.0
 rootdir: C:\Users\jolie\Downloads\codepath\ai110-module2show-pawpal-starter
-plugins: anyio-4.15.1
-collecting ... collected 8 items
+collected 18 items
 
-tests/test_pawpal.py::test_task_completion PASSED                        [ 12%]
-tests/test_pawpal.py::test_task_addition PASSED                          [ 25%]
-tests/test_pawpal.py::test_sorting_by_time PASSED                        [ 37%]
-tests/test_pawpal.py::test_filtering_by_pet_and_status PASSED           [ 50%]
-tests/test_pawpal.py::test_daily_recurring_task_creation PASSED          [ 62%]
-tests/test_pawpal.py::test_weekly_recurring_task_creation PASSED         [ 75%]
-tests/test_pawpal.py::test_one_time_task_does_not_recur PASSED          [ 87%]
-tests/test_pawpal.py::test_conflict_detection_same_and_different_pets PASSED [100%]
+tests/test_pawpal.py::test_sorting_by_time_chronological PASSED          [  5%]
+tests/test_pawpal.py::test_sorting_handles_single_digit_and_boundary_hours PASSED [ 11%]
+tests/test_pawpal.py::test_sorting_by_priority PASSED                    [ 16%]
+tests/test_pawpal.py::test_daily_recurrence_creates_next_day_task PASSED [ 22%]
+tests/test_pawpal.py::test_weekly_recurrence_creates_seven_days_later PASSED [ 27%]
+tests/test_pawpal.py::test_one_time_task_does_not_recur PASSED           [ 33%]
+tests/test_pawpal.py::test_recurrence_overdue_task_anchored_to_today PASSED [ 38%]
+tests/test_pawpal.py::test_recurrence_idempotency_prevents_duplicate_entries PASSED [ 44%]
+tests/test_pawpal.py::test_conflict_detection_flags_exact_duplicate_times_same_pet PASSED [ 50%]
+tests/test_pawpal.py::test_conflict_detection_flags_exact_duplicate_times_different_pets PASSED [ 55%]
+tests/test_pawpal.py::test_conflict_detection_duration_overlap PASSED    [ 61%]
+tests/test_pawpal.py::test_back_to_back_tasks_do_not_conflict PASSED     [ 66%]
+tests/test_pawpal.py::test_completed_tasks_do_not_trigger_daily_conflicts PASSED [ 72%]
+tests/test_pawpal.py::test_task_mark_complete PASSED                     [ 77%]
+tests/test_pawpal.py::test_pet_task_addition_and_attribution PASSED      [ 83%]
+tests/test_pawpal.py::test_owner_multi_pet_aggregation PASSED            [ 88%]
+tests/test_pawpal.py::test_filtering_by_pet_and_status PASSED            [ 94%]
+tests/test_pawpal.py::test_empty_states_handled_gracefully PASSED        [100%]
 
-============================== 8 passed in 0.05s ==============================
+============================== 18 passed in 0.06s ==============================
 ```
 
 **Confidence Level**: ⭐⭐⭐⭐⭐ (5/5 stars)
